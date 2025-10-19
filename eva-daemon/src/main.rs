@@ -74,7 +74,7 @@ async fn main() {
     println!("╚═══════════════════════════════════════╝\n");
 
     // Connect to Ollama
-    let llama = match LlamaEngine::new("llama3.2:3b") {
+    let llama = match LlamaEngine::new("llama3.1:8b") {
         Ok(engine) => {
             info!("✓ Connected to Ollama");
             Arc::new(engine)
