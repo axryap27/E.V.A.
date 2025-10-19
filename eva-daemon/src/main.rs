@@ -66,20 +66,24 @@ async fn main() {
         .with_max_level(Level::INFO)
         .init();
 
-    println!("\n╔════════════════════════════════════════╗");
-    println!("║                                        ║");
-    println!("║     E.V.A. Daemon Starting...          ║");
-    println!("║     Embedded Virtual Assistant         ║");
-    println!("║                                        ║");
-    println!("╚════════════════════════════════════════╝\n");
+    println!("\n╔═══════════════════════════════════════╗");
+    println!("║                                       ║");
+    println!("║     E.V.A. Daemon Starting...         ║");
+    println!("║     Embedded Virtual Assistant        ║");
+    println!("║                                       ║");
+    println!("╚═══════════════════════════════════════╝\n");
 
-    // Load Llama model
-    let model_path = "models/llama-3.2-3b-instruct-q4.gguf";
-    let llama = match LlamaEngine::new(model_path) {
-        Ok(engine) => Arc::new(engine),
+    // Connect to Ollama
+    let llama = match LlamaEngine::new("llama3.2:3b") {
+        Ok(engine) => {
+            info!("✓ Connected to Ollama");
+            Arc::new(engine)
+        }
         Err(e) => {
-            error!("❌ Failed to load Llama model: {}", e);
-            error!("   Make sure {} exists", model_path);
+            error!("❌ Failed to connect to Ollama: {}", e);
+            error!("   Make sure Ollama is installed and running:");
+            error!("   brew install ollama && ollama serve");
+            error!("   ollama pull llama3.2:3b");
             std::process::exit(1);
         }
     };
@@ -94,9 +98,9 @@ async fn main() {
 
     let addr = SocketAddr::from(([127, 0, 0, 1], 8765));
 
-    println!("║     http://127.0.0.1:8765              ║");
-    println!("║                                        ║");
-    println!("╚════════════════════════════════════════╝\n");
+    println!("║     http://127.0.0.1:8765      ║");
+    println!("║                                ║");
+    println!("╚════════════════════════════════╝\n");
 
     info!("🚀 Server listening on {}", addr);
 
