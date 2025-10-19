@@ -1,10 +1,15 @@
+mod ai;
+
+use ai::LlamaEngine;
 use axum::{
+    extract::State,
     routing::{get, post},
     Json, Router,
 };
 use serde::{Deserialize, Serialize};
 use std::net::SocketAddr;
-use tracing::{info, Level};
+use std::sync::Arc;
+use tracing::{info, error, Level};
 
 #[derive(Deserialize)]
 struct CommandRequest {
@@ -16,37 +21,41 @@ struct CommandResponse {
     response: String,
 }
 
+#[derive(Clone)]
+struct AppState {
+    llama: Arc<LlamaEngine>,
+}
+
 async fn health() -> &'static str {
     "E.V.A. is online ✓"
 }
 
 async fn process_command(
+    State(state): State<AppState>,
     Json(payload): Json<CommandRequest>,
 ) -> Json<CommandResponse> {
     info!("📥 Command: {}", payload.text);
-    
-    // Smart responses based on command
+
+    // Handle special commands that don't need AI
     let response = match payload.text.to_lowercase().as_str() {
-        text if text.contains("hello") || text.contains("hi") => {
-            "Hello! I'm E.V.A. How can I help you today?".to_string()
-        }
         text if text.contains("time") => {
             format!("The current time is {}", chrono::Local::now().format("%I:%M %p"))
         }
         text if text.contains("date") => {
             format!("Today is {}", chrono::Local::now().format("%A, %B %d, %Y"))
         }
-        text if text.contains("weather") => {
-            "I don't have access to weather data yet, but I'm learning!".to_string()
-        }
-        text if text.contains("help") || text.contains("what can you do") => {
-            "I can help with:\n• Opening apps\n• Answering questions\n• System commands\n• And much more soon!".to_string()
-        }
         _ => {
-            format!("I heard you say: '{}'. I'm still learning how to respond to that!", payload.text)
+            // Use Llama for general queries
+            match state.llama.generate(&payload.text).await {
+                Ok(response) => response,
+                Err(e) => {
+                    error!("❌ Llama error: {}", e);
+                    "Sorry, I encountered an error processing your request.".to_string()
+                }
+            }
         }
     };
-    
+
     Json(CommandResponse { response })
 }
 
@@ -57,18 +66,34 @@ async fn main() {
         .with_max_level(Level::INFO)
         .init();
 
-    let app = Router::new()
-        .route("/health", get(health))
-        .route("/command", post(process_command))
-        .layer(tower_http::cors::CorsLayer::permissive());
-
-    let addr = SocketAddr::from(([127, 0, 0, 1], 8765));
-    
     println!("\n╔════════════════════════════════════════╗");
     println!("║                                        ║");
     println!("║     E.V.A. Daemon Starting...          ║");
     println!("║     Embedded Virtual Assistant         ║");
     println!("║                                        ║");
+    println!("╚════════════════════════════════════════╝\n");
+
+    // Load Llama model
+    let model_path = "models/llama-3.2-3b-instruct-q4.gguf";
+    let llama = match LlamaEngine::new(model_path) {
+        Ok(engine) => Arc::new(engine),
+        Err(e) => {
+            error!("❌ Failed to load Llama model: {}", e);
+            error!("   Make sure {} exists", model_path);
+            std::process::exit(1);
+        }
+    };
+
+    let state = AppState { llama };
+
+    let app = Router::new()
+        .route("/health", get(health))
+        .route("/command", post(process_command))
+        .layer(tower_http::cors::CorsLayer::permissive())
+        .with_state(state);
+
+    let addr = SocketAddr::from(([127, 0, 0, 1], 8765));
+
     println!("║     http://127.0.0.1:8765              ║");
     println!("║                                        ║");
     println!("╚════════════════════════════════════════╝\n");
@@ -78,7 +103,7 @@ async fn main() {
     let listener = tokio::net::TcpListener::bind(&addr)
         .await
         .unwrap();
-    
+
     axum::serve(listener, app)
         .await
         .unwrap();
