@@ -16,7 +16,14 @@ chrono = "0.4"
 # AI Models
 reqwest = { version = "0.12", features = ["json"] }
 anyhow = "1.0"
+dotenv = "0.15"
 
-# Audio (for future wake word + STT)
+# Audio (wake word + STT)
 cpal = "0.15"
 hound = "3.5"
+ringbuf = "0.4"
+dasp = "0.11"
+
+# WebSocket for real-time updates
+axum-extra = { version = "0.9", features = ["typed-header"] }
+futures-util = "0.3"
