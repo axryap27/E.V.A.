@@ -1,4 +1,5 @@
 mod ai;
+// mod audio;  // TODO: Fix cpal threading issues
 
 use ai::LlamaEngine;
 use axum::{
@@ -61,6 +62,9 @@ async fn process_command(
 
 #[tokio::main]
 async fn main() {
+    // Load environment variables
+    dotenv::dotenv().ok();
+
     // Initialize logging
     tracing_subscriber::fmt()
         .with_max_level(Level::INFO)
@@ -83,10 +87,13 @@ async fn main() {
             error!("❌ Failed to connect to Ollama: {}", e);
             error!("   Make sure Ollama is installed and running:");
             error!("   brew install ollama && ollama serve");
-            error!("   ollama pull llama3.2:3b");
+            error!("   ollama pull llama3.1:8b");
             std::process::exit(1);
         }
     };
+
+    // TODO: Implement wake word detection
+    info!("⚠️  Voice activity detection disabled (coming soon)");
 
     let state = AppState { llama };
 
