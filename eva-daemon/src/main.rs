@@ -1,4 +1,5 @@
 mod ai;
+mod tools;
 // mod audio;  // TODO: Fix cpal threading issues
 
 use ai::LlamaEngine;

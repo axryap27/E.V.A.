@@ -1,6 +1,9 @@
 use anyhow::{Context, Result};
 use serde::{Deserialize, Serialize};
+use serde_json::Value;
 use tracing::{info, warn};
+
+use crate::tools::{self, ToolCall};
 
 #[derive(Serialize)]
 struct OllamaRequest {
@@ -40,14 +43,29 @@ impl LlamaEngine {
     }
 
     pub async fn generate(&self, prompt: &str) -> Result<String> {
+        self.generate_with_context(prompt, None).await
+    }
+
+    pub async fn generate_with_context(&self, prompt: &str, context: Option<String>) -> Result<String> {
+        let system_prompt = format!(
+            "You are E.V.A. (Embedded Virtual Assistant), a helpful AI assistant with powerful capabilities.\n\n{}\n\nBe concise and helpful. If you need to use a tool, output ONLY the JSON tool call. Otherwise, respond naturally to the user.",
+            tools::get_tools_definition()
+        );
+
+        let full_prompt = if let Some(ctx) = context {
+            format!("{}\n\nUser: {}", ctx, prompt)
+        } else {
+            prompt.to_string()
+        };
+
         let request = OllamaRequest {
             model: self.model.clone(),
-            prompt: prompt.to_string(),
+            prompt: full_prompt,
             stream: false,
-            system: "You are E.V.A. (Embedded Virtual Assistant), a helpful AI assistant. Be concise, friendly, and helpful. Keep responses under 3 sentences unless asked for detail.".to_string(),
+            system: system_prompt,
             options: OllamaOptions {
                 temperature: 0.7,
-                num_predict: 150,
+                num_predict: 300,
             },
         };
 
@@ -68,7 +86,50 @@ impl LlamaEngine {
             .await
             .context("Failed to parse Ollama response")?;
 
-        Ok(ollama_response.response.trim().to_string())
+        let response_text = ollama_response.response.trim().to_string();
+
+        // Check if the response contains a tool call
+        if let Some(tool_call) = self.extract_tool_call(&response_text) {
+            info!("🔧 Tool call detected: {}", tool_call.name);
+
+            // Execute the tool
+            match tools::execute_tool(&tool_call).await {
+                Ok(result) => {
+                    info!("✓ Tool executed: {}", result.output);
+
+                    // Generate final response with tool result
+                    let context = format!(
+                        "Tool '{}' was executed.\nResult: {}\n\nProvide a natural response to the user based on this result.",
+                        tool_call.name, result.output
+                    );
+
+                    Box::pin(self.generate_with_context(prompt, Some(context))).await
+                }
+                Err(e) => {
+                    warn!("❌ Tool execution failed: {}", e);
+                    Ok(format!("I tried to use a tool, but encountered an error: {}", e))
+                }
+            }
+        } else {
+            Ok(response_text)
+        }
+    }
+
+    fn extract_tool_call(&self, text: &str) -> Option<ToolCall> {
+        // Try to find JSON tool call in response
+        if let Some(start) = text.find("{\"tool\"") {
+            if let Some(end) = text[start..].find("}}}") {
+                let json_str = &text[start..start + end + 3];
+                if let Ok(wrapper) = serde_json::from_str::<Value>(json_str) {
+                    if let Some(tool_obj) = wrapper.get("tool") {
+                        if let Ok(tool_call) = serde_json::from_value::<ToolCall>(tool_obj.clone()) {
+                            return Some(tool_call);
+                        }
+                    }
+                }
+            }
+        }
+        None
     }
 
     pub async fn check_health(&self) -> bool {
