@@ -116,7 +116,34 @@ impl LlamaEngine {
     }
 
     fn extract_tool_call(&self, text: &str) -> Option<ToolCall> {
-        // Try to find JSON tool call in response
+        // Try to parse direct tool call format: {"name": "...", "arguments": {...}}
+        if let Some(start) = text.find("{\"name\"") {
+            // Find the end of the JSON object
+            let mut brace_count = 0;
+            let mut end_pos = start;
+            for (i, ch) in text[start..].char_indices() {
+                match ch {
+                    '{' => brace_count += 1,
+                    '}' => {
+                        brace_count -= 1;
+                        if brace_count == 0 {
+                            end_pos = start + i + 1;
+                            break;
+                        }
+                    }
+                    _ => {}
+                }
+            }
+
+            if end_pos > start {
+                let json_str = &text[start..end_pos];
+                if let Ok(tool_call) = serde_json::from_str::<ToolCall>(json_str) {
+                    return Some(tool_call);
+                }
+            }
+        }
+
+        // Try wrapped format: {"tool": {"name": "...", "arguments": {...}}}
         if let Some(start) = text.find("{\"tool\"") {
             if let Some(end) = text[start..].find("}}}") {
                 let json_str = &text[start..start + end + 3];
@@ -129,6 +156,7 @@ impl LlamaEngine {
                 }
             }
         }
+
         None
     }
 
