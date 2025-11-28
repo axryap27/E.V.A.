@@ -1,6 +1,9 @@
 pub mod web_search;
 pub mod system_control;
 pub mod file_ops;
+pub mod screen;
+pub mod clipboard;
+pub mod notifications;
 
 use anyhow::Result;
 use serde::{Deserialize, Serialize};
@@ -23,12 +26,32 @@ pub struct ToolResult {
 /// Execute a tool call and return the result
 pub async fn execute_tool(tool_call: &ToolCall) -> Result<ToolResult> {
     match tool_call.name.as_str() {
+        // Web & Search
         "web_search" => web_search::execute(&tool_call.arguments).await,
+
+        // System Control
         "run_command" => system_control::execute_command(&tool_call.arguments).await,
         "run_applescript" => system_control::execute_applescript(&tool_call.arguments).await,
+
+        // File Operations
         "read_file" => file_ops::read_file(&tool_call.arguments).await,
         "write_file" => file_ops::write_file(&tool_call.arguments).await,
         "list_directory" => file_ops::list_directory(&tool_call.arguments).await,
+
+        // Screen & Window Management
+        "screenshot" => screen::take_screenshot(&tool_call.arguments).await,
+        "active_window" => screen::get_active_window(&tool_call.arguments).await,
+        "running_apps" => screen::get_running_apps(&tool_call.arguments).await,
+        "switch_app" => screen::switch_to_app(&tool_call.arguments).await,
+
+        // Clipboard
+        "get_clipboard" => clipboard::get_clipboard(&tool_call.arguments).await,
+        "set_clipboard" => clipboard::set_clipboard(&tool_call.arguments).await,
+
+        // Notifications
+        "notify" => notifications::send_notification(&tool_call.arguments).await,
+        "dialog" => notifications::show_dialog(&tool_call.arguments).await,
+
         _ => Ok(ToolResult {
             success: false,
             output: format!("Unknown tool: {}", tool_call.name),

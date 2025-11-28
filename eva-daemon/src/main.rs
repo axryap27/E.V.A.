@@ -91,6 +91,50 @@ async fn process_command(
             Ok(result) => result.output,
             Err(e) => format!("Failed to list directory: {}", e),
         }
+    } else if text.contains("screenshot") || text.contains("screen capture") {
+        info!("📸 Taking screenshot");
+        use crate::tools::{ToolCall, execute_tool};
+        let tool_call = ToolCall {
+            name: "screenshot".to_string(),
+            arguments: serde_json::json!({}),
+        };
+        match execute_tool(&tool_call).await {
+            Ok(result) => result.output,
+            Err(e) => format!("Screenshot failed: {}", e),
+        }
+    } else if text.contains("clipboard") || text.contains("what's copied") {
+        info!("📋 Reading clipboard");
+        use crate::tools::{ToolCall, execute_tool};
+        let tool_call = ToolCall {
+            name: "get_clipboard".to_string(),
+            arguments: serde_json::json!({}),
+        };
+        match execute_tool(&tool_call).await {
+            Ok(result) => result.output,
+            Err(e) => format!("Clipboard read failed: {}", e),
+        }
+    } else if text.contains("active window") || text.contains("current app") || text.contains("focused window") {
+        info!("🪟 Getting active window");
+        use crate::tools::{ToolCall, execute_tool};
+        let tool_call = ToolCall {
+            name: "active_window".to_string(),
+            arguments: serde_json::json!({}),
+        };
+        match execute_tool(&tool_call).await {
+            Ok(result) => result.output,
+            Err(e) => format!("Failed: {}", e),
+        }
+    } else if text.contains("running apps") || text.contains("open apps") {
+        info!("📱 Getting running apps");
+        use crate::tools::{ToolCall, execute_tool};
+        let tool_call = ToolCall {
+            name: "running_apps".to_string(),
+            arguments: serde_json::json!({}),
+        };
+        match execute_tool(&tool_call).await {
+            Ok(result) => result.output,
+            Err(e) => format!("Failed: {}", e),
+        }
     } else if text.contains("time") {
         format!("The current time is {}", chrono::Local::now().format("%I:%M %p"))
     } else if text.contains("date") {
