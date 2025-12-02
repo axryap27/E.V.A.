@@ -4,6 +4,7 @@ pub mod file_ops;
 pub mod screen;
 pub mod clipboard;
 pub mod notifications;
+pub mod consent;
 
 use anyhow::Result;
 use serde::{Deserialize, Serialize};
