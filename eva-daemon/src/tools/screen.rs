@@ -5,6 +5,7 @@ use std::process::Command;
 use tracing::info;
 
 use super::ToolResult;
+use super::consent;
 
 #[derive(Deserialize)]
 struct ScreenshotArgs {
@@ -117,6 +118,25 @@ pub async fn switch_to_app(arguments: &Value) -> Result<ToolResult> {
     let args: SwitchAppArgs = serde_json::from_value(arguments.clone())?;
 
     info!("🔄 Switching to app: {}", args.app_name);
+
+    // Request user consent before switching apps
+    match consent::request_switch_app_consent(&args.app_name).await {
+        Ok(false) => {
+            info!("⚠️ App switch denied by user");
+            return Ok(ToolResult {
+                success: false,
+                output: "App switch denied by user.".to_string(),
+            });
+        }
+        Err(e) => {
+            tracing::warn!("Failed to show consent dialog: {}", e);
+            return Ok(ToolResult {
+                success: false,
+                output: format!("Failed to request permission: {}", e),
+            });
+        }
+        Ok(true) => {} // User approved, continue
+    }
 
     let script = format!(
         r#"tell application "{}" to activate"#,
