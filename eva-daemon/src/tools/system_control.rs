@@ -5,6 +5,7 @@ use std::process::Command;
 use tracing::{info, warn};
 
 use super::ToolResult;
+use super::consent;
 
 #[derive(Deserialize)]
 struct CommandArgs {
@@ -32,6 +33,25 @@ pub async fn execute_command(arguments: &Value) -> Result<ToolResult> {
                 output: "Command blocked for safety reasons.".to_string(),
             });
         }
+    }
+
+    // Request user consent before executing
+    match consent::request_command_consent(&args.command).await {
+        Ok(false) => {
+            info!("⚠️ Command execution denied by user");
+            return Ok(ToolResult {
+                success: false,
+                output: "Command execution denied by user.".to_string(),
+            });
+        }
+        Err(e) => {
+            warn!("Failed to show consent dialog: {}", e);
+            return Ok(ToolResult {
+                success: false,
+                output: format!("Failed to request permission: {}", e),
+            });
+        }
+        Ok(true) => {} // User approved, continue
     }
 
     match Command::new("sh")
@@ -71,6 +91,25 @@ pub async fn execute_applescript(arguments: &Value) -> Result<ToolResult> {
         .context("Invalid AppleScript arguments")?;
 
     info!("🍎 Executing AppleScript");
+
+    // Request user consent before executing
+    match consent::request_applescript_consent(&args.script).await {
+        Ok(false) => {
+            info!("⚠️ AppleScript execution denied by user");
+            return Ok(ToolResult {
+                success: false,
+                output: "AppleScript execution denied by user.".to_string(),
+            });
+        }
+        Err(e) => {
+            warn!("Failed to show consent dialog: {}", e);
+            return Ok(ToolResult {
+                success: false,
+                output: format!("Failed to request permission: {}", e),
+            });
+        }
+        Ok(true) => {} // User approved, continue
+    }
 
     match Command::new("osascript")
         .arg("-e")
