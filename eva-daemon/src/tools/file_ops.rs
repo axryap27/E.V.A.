@@ -6,6 +6,7 @@ use std::path::Path;
 use tracing::info;
 
 use super::ToolResult;
+use super::consent;
 
 #[derive(Deserialize)]
 struct ReadFileArgs {
@@ -28,6 +29,25 @@ pub async fn read_file(arguments: &Value) -> Result<ToolResult> {
         .context("Invalid read_file arguments")?;
 
     info!("📄 Reading file: {}", args.path);
+
+    // Request user consent before reading file
+    match consent::request_read_file_consent(&args.path).await {
+        Ok(false) => {
+            info!("⚠️ File read denied by user");
+            return Ok(ToolResult {
+                success: false,
+                output: "File read denied by user.".to_string(),
+            });
+        }
+        Err(e) => {
+            tracing::warn!("Failed to show consent dialog: {}", e);
+            return Ok(ToolResult {
+                success: false,
+                output: format!("Failed to request permission: {}", e),
+            });
+        }
+        Ok(true) => {} // User approved, continue
+    }
 
     match fs::read_to_string(&args.path) {
         Ok(content) => {
@@ -57,6 +77,25 @@ pub async fn write_file(arguments: &Value) -> Result<ToolResult> {
         .context("Invalid write_file arguments")?;
 
     info!("✍️ Writing file: {}", args.path);
+
+    // Request user consent before writing file
+    match consent::request_write_file_consent(&args.path).await {
+        Ok(false) => {
+            info!("⚠️ File write denied by user");
+            return Ok(ToolResult {
+                success: false,
+                output: "File write denied by user.".to_string(),
+            });
+        }
+        Err(e) => {
+            tracing::warn!("Failed to show consent dialog: {}", e);
+            return Ok(ToolResult {
+                success: false,
+                output: format!("Failed to request permission: {}", e),
+            });
+        }
+        Ok(true) => {} // User approved, continue
+    }
 
     // Create parent directories if they don't exist
     if let Some(parent) = Path::new(&args.path).parent() {
